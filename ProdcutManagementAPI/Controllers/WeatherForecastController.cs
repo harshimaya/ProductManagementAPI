@@ -8,7 +8,7 @@ namespace ProdcutManagementAPI.Controllers
     {
         private static readonly string[] Summaries =
         [
-            "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
+            "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching","Testing"
         ];
 
         [HttpGet(Name = "GetWeatherForecast")]
