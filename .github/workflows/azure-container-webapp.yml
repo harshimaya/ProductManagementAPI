@@ -1,0 +1,75 @@
+name: Build, Push to ACR, and Deploy to AKS
+
+on:
+  push:
+    branches:
+      - master  # Change to 'main' if your default branch is main
+  workflow_dispatch:  # Allows manual triggering from GitHub UI
+
+# Environment variables (pulls from GitHub Repository Variables)
+env:
+  ACR_NAME: ${{ vars.ACR_NAME }}               # e.g. acrproductmanagementapi
+  IMAGE_NAME: ${{ vars.IMAGE_NAME }}           # e.g. productmanagementapi
+  AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }} # Name of your AKS cluster
+  AKS_RESOURCE_GROUP: ${{ vars.AKS_RESOURCE_GROUP }} # Resource group of your AKS cluster
+  K8S_NAMESPACE: ${{ vars.A8S_NAMESPACE }}                       # Kubernetes namespace (change if needed)
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    # Required for Azure OIDC authentication
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 1. Log in to Azure using OIDC
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # 2. Log in to ACR using Azure CLI
+      - name: Log in to ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      # 3. Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 4. Build and push Docker image
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ProdcutManagementAPI
+          file: ./ProdcutManagementAPI/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 5. Set up kubectl context for AKS
+      - name: Get AKS Credentials
+        run: |
+          az aks get-credentials --resource-group ${{ env.AKS_RESOURCE_GROUP }} --name ${{ env.AKS_CLUSTER_NAME }} --overwrite-existing
+
+      # 6. Update Kubernetes deployment manifest with the new image tag and deploy
+      - name: Deploy to AKS
+        run: |
+          # If you store your manifests in a folder like ./k8s/deployment.yaml
+          # This command dynamically updates the image tag in your deployment configuration
+          kubectl set image deployment/${{ env.IMAGE_NAME }} ${{ env.IMAGE_NAME }}=${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} --namespace=${{ env.K8S_NAMESPACE }}
+          
+          # Alternatively, if you use a full manifest file apply method:
+          # envsubst < ./k8s/deployment.yaml | kubectl apply -f -
+          
+          # Verify rollout status
+          kubectl rollout status deployment/${{ env.IMAGE_NAME }} --namespace=${{ env.K8S_NAMESPACE }}
