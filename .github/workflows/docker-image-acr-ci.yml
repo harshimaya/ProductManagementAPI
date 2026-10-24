@@ -40,12 +40,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 4. Build and push the image using Buildx
+      # 4. Build and push the image using Buildx (pointing to your subfolder)
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./Dockerfile
+          context: ./ProdcutManagementAPI
+          file: ./ProdcutManagementAPI/Dockerfile
           push: true
           tags: |
             ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
