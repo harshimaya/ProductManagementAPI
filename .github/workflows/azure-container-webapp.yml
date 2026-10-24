@@ -18,7 +18,7 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
-    # Required for Azure OIDC authentication
+    # Required for Azure OIDC authentication and built-in token permissions
     permissions:
       id-token: write
       contents: read
@@ -60,7 +60,8 @@ jobs:
       - name: Install kubelogin
         uses: azure/use-kubelogin@v1
         with:
-          kubelogin-version: 'latest'
+          kubelogin-version: 'v0.1.3'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # 6. Set up kubectl context for AKS
       - name: Get AKS Credentials
