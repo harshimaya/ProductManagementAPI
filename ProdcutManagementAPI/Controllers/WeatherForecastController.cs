@@ -8,7 +8,7 @@ namespace ProdcutManagementAPI.Controllers
     {
         private static string[] Summaries =
         [
-            "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching","Testing"
+            "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching","Testing","Kasthuri","Kasthuri1","Kasthuri2","Kasthuri3","Kasthuri4","Kasthuri5","Kasthuri6","Kasthuri7","Kasthuri8","Kasthuri9"
         ];
         private static List<string> SummariesList = new()
 {
