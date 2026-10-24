@@ -12,7 +12,7 @@ env:
   IMAGE_NAME: ${{ vars.IMAGE_NAME }}           # e.g. productmanagementapi
   AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }} # Name of your AKS cluster
   AKS_RESOURCE_GROUP: ${{ vars.AKS_RESOURCE_GROUP }} # Resource group of your AKS cluster
-  K8S_NAMESPACE: ${{ vars.A8S_NAMESPACE }}                       # Kubernetes namespace (change if needed)
+  K8S_NAMESPACE: default                       # Kubernetes namespace (change if needed)
 
 jobs:
   build-and-deploy:
@@ -37,7 +37,7 @@ jobs:
 
       # 2. Log in to ACR using Azure CLI
       - name: Log in to ACR
-        run: az acr login --name ${{ env.ACR_NAME }}
+        run: az aks get-credentials --name ${{ env.AKS_CLUSTER_NAME }} --resource-group ${{ env.AKS_RESOURCE_GROUP }} --overwrite-existing || az acr login --name ${{ env.ACR_NAME }}
 
       # 3. Set up Docker Buildx
       - name: Set up Docker Buildx
@@ -52,24 +52,26 @@ jobs:
           push: true
           tags: |
             ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
+            ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 5. Set up kubectl context for AKS
+      # 5. Install kubelogin (Required for Microsoft Entra ID enabled AKS clusters)
+      - name: Install kubelogin
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: 'latest'
+
+      # 6. Set up kubectl context for AKS (configured to use azure-cli login method)
       - name: Get AKS Credentials
         run: |
           az aks get-credentials --resource-group ${{ env.AKS_RESOURCE_GROUP }} --name ${{ env.AKS_CLUSTER_NAME }} --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
 
-      # 6. Update Kubernetes deployment manifest with the new image tag and deploy
+      # 7. Update Kubernetes deployment manifest with the new image tag and deploy
       - name: Deploy to AKS
         run: |
-          # If you store your manifests in a folder like ./k8s/deployment.yaml
-          # This command dynamically updates the image tag in your deployment configuration
           kubectl set image deployment/${{ env.IMAGE_NAME }} ${{ env.IMAGE_NAME }}=${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} --namespace=${{ env.K8S_NAMESPACE }}
-          
-          # Alternatively, if you use a full manifest file apply method:
-          # envsubst < ./k8s/deployment.yaml | kubectl apply -f -
           
           # Verify rollout status
           kubectl rollout status deployment/${{ env.IMAGE_NAME }} --namespace=${{ env.K8S_NAMESPACE }}
