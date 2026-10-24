@@ -12,7 +12,7 @@ env:
   IMAGE_NAME: ${{ vars.IMAGE_NAME }}           # e.g. productmanagementapi
   AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }} # Name of your AKS cluster
   AKS_RESOURCE_GROUP: ${{ vars.AKS_RESOURCE_GROUP }} # Resource group of your AKS cluster
-  K8S_NAMESPACE: default                       # Kubernetes namespace (change if needed)
+  K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}                       # Kubernetes namespace (change if needed)
 
 jobs:
   build-and-deploy:
