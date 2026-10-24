@@ -3,13 +3,13 @@ name: Build and Push Docker Image to ACR
 on:
   push:
     branches:
-      - master  # Trigger workflow on push to main branch
+      - master  # Change to 'master' if your default branch is master
   workflow_dispatch:  # Allows manual triggering from GitHub UI
 
-# Environment variables used across the workflow
+# Environment variables (pulls from GitHub Repository Variables)
 env:
-  ACR_NAME: ${{ vars.ACR_NAME }} # e.g. myregistry (without .azurecr.io)
-  IMAGE_NAME: ${{ vars.IMAGE_NAME }} # e.g. my-app
+  ACR_NAME: ${{ vars.ACR_NAME }}       # e.g. acrproductmanagementapi
+  IMAGE_NAME: ${{ vars.IMAGE_NAME }}   # e.g. productmanagementapi
 
 jobs:
   build-and-push:
@@ -24,7 +24,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Log in to Azure using OIDC (Recommended secure method)
+      # 1. Log in to Azure using OIDC
       - name: Azure Login
         uses: azure/login@v2
         with:
@@ -32,18 +32,15 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Log in to Azure Container Registry
+      # 2. Log in to ACR using Azure CLI (leverages the OIDC login session)
       - name: Log in to ACR
-        uses: azure/docker-login@v2
-        with:
-          login-server: ${{ env.ACR_NAME }}.azurecr.io
-          # Reuses the Azure login context established in the step above
+        run: az acr login --name ${{ env.ACR_NAME }}
 
-      # Set up Docker Buildx for enhanced build capabilities and caching
+      # 3. Set up Docker Buildx for enhanced build capabilities and caching
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Build and push the image using Buildx
+      # 4. Build and push the image using Buildx
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
