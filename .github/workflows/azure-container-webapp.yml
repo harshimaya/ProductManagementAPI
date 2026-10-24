@@ -1,0 +1,76 @@
+name: Build, Push to ACR, and Deploy to AKS
+
+on:
+  push:
+    branches:
+      - master  # Change to 'main' if your default branch is main
+  workflow_dispatch:  # Allows manual triggering from GitHub UI
+
+# Environment variables (pulls from GitHub Repository Variables)
+env:
+  ACR_NAME: ${{ vars.ACR_NAME }}               # e.g. acrproductmanagementapi
+  IMAGE_NAME: ${{ vars.IMAGE_NAME }}           # e.g. productmanagementapi
+  AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }} # Name of your AKS cluster
+  AKS_RESOURCE_GROUP: ${{ vars.AKS_RESOURCE_GROUP }} # Resource group of your AKS cluster
+  K8S_NAMESPACE: productmanagement             # Your Kubernetes namespace
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    # Required for Azure OIDC authentication and built-in token permissions
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 1. Log in to Azure using OIDC
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # 2. Log in to ACR using Azure CLI
+      - name: Log in to ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      # 3. Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 4. Build and push Docker image
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ProdcutManagementAPI
+          file: ./ProdcutManagementAPI/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 5. Install kubelogin (Required for Microsoft Entra ID enabled AKS clusters)
+      - name: Install kubelogin
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: 'v0.1.3'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # 6. Set up kubectl context for AKS
+      - name: Get AKS Credentials
+        run: |
+          az aks get-credentials --resource-group ${{ env.AKS_RESOURCE_GROUP }} --name ${{ env.AKS_CLUSTER_NAME }} --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+
+      # 7. Update Kubernetes deployment with the exact deployment and container names
+      - name: Deploy to AKS
+        run: |
+          kubectl set image deployment/productmanagement-deployment webapi=${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} --namespace=${{ env.K8S_NAMESPACE }}
+          kubectl rollout status deployment/productmanagement-deployment --namespace=${{ env.K8S_NAMESPACE }}
