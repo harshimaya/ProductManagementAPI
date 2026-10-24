@@ -37,7 +37,7 @@ jobs:
 
       # 2. Log in to ACR using Azure CLI
       - name: Log in to ACR
-        run: az aks get-credentials --name ${{ env.AKS_CLUSTER_NAME }} --resource-group ${{ env.AKS_RESOURCE_GROUP }} --overwrite-existing || az acr login --name ${{ env.ACR_NAME }}
+        run: az acr login --name ${{ env.ACR_NAME }}
 
       # 3. Set up Docker Buildx
       - name: Set up Docker Buildx
@@ -52,7 +52,7 @@ jobs:
           push: true
           tags: |
             ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ latest
+            ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -62,7 +62,7 @@ jobs:
         with:
           kubelogin-version: 'latest'
 
-      # 6. Set up kubectl context for AKS (configured to use azure-cli login method)
+      # 6. Set up kubectl context for AKS
       - name: Get AKS Credentials
         run: |
           az aks get-credentials --resource-group ${{ env.AKS_RESOURCE_GROUP }} --name ${{ env.AKS_CLUSTER_NAME }} --overwrite-existing
@@ -72,6 +72,4 @@ jobs:
       - name: Deploy to AKS
         run: |
           kubectl set image deployment/${{ env.IMAGE_NAME }} ${{ env.IMAGE_NAME }}=${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} --namespace=${{ env.K8S_NAMESPACE }}
-          
-          # Verify rollout status
           kubectl rollout status deployment/${{ env.IMAGE_NAME }} --namespace=${{ env.K8S_NAMESPACE }}
